@@ -159,6 +159,34 @@ parse_args() {
     fi
 }
 
+setup_logging() {
+    mkdir -p "$OUTPUT_DIR/.logs"
+    touch "$OUTPUT_DIR/.logs/glean.log"
+}
+
+log_info() {
+    local msg="$1"
+    local timestamp
+    timestamp="$(date '+%Y-%m-%d %H:%M:%S')"
+    echo "[$timestamp] INFO: $msg" >> "$OUTPUT_DIR/.logs/glean.log"
+    if [[ "$VERBOSE" == "true" ]]; then
+        echo "[$timestamp] INFO: $msg" >&2
+    fi
+}
+
+log_error() {
+    local msg="$1"
+    local timestamp
+    timestamp="$(date '+%Y-%m-%d %H:%M:%S')"
+    echo "[$timestamp] ERROR: $msg" >> "$OUTPUT_DIR/.logs/glean.log"
+    echo "glean: $msg" >&2
+}
+
+log_session() {
+    local name="$1" content="$2"
+    echo "$content" >> "$OUTPUT_DIR/.logs/${name}.log"
+}
+
 main() {
     if [[ $# -eq 0 ]]; then
         usage
