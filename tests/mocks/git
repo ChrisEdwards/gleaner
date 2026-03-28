@@ -9,6 +9,10 @@ if [[ "${1:-}" == "clone" ]]; then
     fi
     # Extract target dir (last arg)
     target="${!#}"
+    # If last arg is the URL (no explicit target), derive from URL basename
+    if [[ "$target" =~ ^https?:// ]]; then
+        target="$(basename "${target%.git}")"
+    fi
     mkdir -p "$target"
     echo "mock repo" > "$target/README.md"
     exit 0
@@ -19,3 +23,5 @@ real_git="$(which -a git | grep -v "$(dirname "$0")" | head -1)"
 if [[ -n "$real_git" ]]; then
     exec "$real_git" "$@"
 fi
+echo "mock git: could not find real git binary" >&2
+exit 1
