@@ -236,19 +236,22 @@ update_repo_state() {
         sleep 0.1
     done
 
-    local tmp
+    local tmp rc
     tmp=$(mktemp)
-    jq \
+    if jq \
         --arg repo "$repo_name" \
         --arg status "$status" \
         --arg sess "$session_id" \
         --arg step "$step" \
         --argjson passes "$critique_passes" \
         '.repos[$repo] = {status: $status, session_id: $sess, step: $step, critique_passes: $passes}' \
-        "$OUTPUT_DIR/.glean-state.json" > "$tmp"
-    mv "$tmp" "$OUTPUT_DIR/.glean-state.json"
-
+        "$OUTPUT_DIR/.glean-state.json" > "$tmp" && mv "$tmp" "$OUTPUT_DIR/.glean-state.json"; then
+        rc=0
+    else
+        rc=1
+    fi
     rmdir "$lockdir"
+    return $rc
 }
 
 extract_github_urls() {
@@ -712,8 +715,7 @@ cleanup_on_exit() {
     fi
     # Clean up any remaining cloned repos
     if [[ -d "$CLONE_DIR" ]]; then
-        find "$CLONE_DIR" -type f -delete 2>/dev/null || true
-        find "$CLONE_DIR" -type d -delete 2>/dev/null || true
+        rm -rf "$CLONE_DIR"
     fi
     exit "$exit_code"
 }
