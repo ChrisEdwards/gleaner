@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# Mock git for testing
+# Only mocks 'clone' — passes everything else to real git
+
+if [[ "${1:-}" == "clone" ]]; then
+    if [[ "${MOCK_GIT_FAIL:-0}" == "1" ]]; then
+        echo "fatal: repository not found" >&2
+        exit 128
+    fi
+    # Extract target dir (last arg)
+    target="${!#}"
+    mkdir -p "$target"
+    echo "mock repo" > "$target/README.md"
+    exit 0
+fi
+
+# Pass through to real git for non-clone commands
+real_git="$(which -a git | grep -v "$(dirname "$0")" | head -1)"
+if [[ -n "$real_git" ]]; then
+    exec "$real_git" "$@"
+fi

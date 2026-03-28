@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# Mock claude CLI for testing
+# Reads MOCK_CLAUDE_RESPONSE env var for custom output
+# Reads MOCK_CLAUDE_EXIT_CODE env var for custom exit code
+# Logs invocations to MOCK_CLAUDE_LOG if set
+
+if [[ -n "${MOCK_CLAUDE_LOG:-}" ]]; then
+    echo "claude $*" >> "$MOCK_CLAUDE_LOG"
+fi
+
+exit_code="${MOCK_CLAUDE_EXIT_CODE:-0}"
+
+if [[ -n "${MOCK_CLAUDE_RESPONSE:-}" ]]; then
+    echo "$MOCK_CLAUDE_RESPONSE"
+else
+    echo '{"session_id":"mock-session-001","result":"mock response","cost_usd":0.00,"duration_ms":100,"duration_api_ms":80}'
+fi
+
+exit "$exit_code"
