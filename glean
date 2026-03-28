@@ -2,7 +2,13 @@
 set -euo pipefail
 
 # --- Constants ---
-GLEAN_VERSION="$(cat "$(dirname "$(readlink -f "$0" 2>/dev/null || realpath "$0" 2>/dev/null || echo "$0")")/VERSION" 2>/dev/null || echo "0.1.0")"
+_glean_dir() {
+    local dir
+    dir="$(dirname "$(readlink -f "$0" 2>/dev/null || realpath "$0" 2>/dev/null || echo "$0")")"
+    echo "$dir"
+}
+
+GLEAN_VERSION="$(cat "$(_glean_dir)/VERSION" 2>/dev/null || cat "$(_glean_dir)/.glean-version" 2>/dev/null || echo "0.1.0")"
 DEFAULT_OUTPUT_DIR="./gleanings"
 DEFAULT_MODEL="opus"
 DEFAULT_EFFORT="high"
