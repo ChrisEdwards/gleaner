@@ -650,6 +650,54 @@ run_parallel_analysis() {
     return 0
 }
 
+build_synthesis_prompt() {
+    cat <<EOF
+Read all analysis files in ${OUTPUT_DIR}/analysis-*.md. These are
+deep analyses of open source projects evaluated against the spec
+you read at the start of this conversation.
+
+Synthesize the cross-cutting insights into concrete spec
+enhancement recommendations. Focus on:
+- Architectural patterns that appear across multiple projects
+- Structural advantages the spec has that should be emphasized
+- Gaps or blind spots the spec should address
+- Ideas that can be combined or reimagined
+
+Write your synthesis to ${OUTPUT_DIR}/synthesis.md.
+EOF
+}
+
+run_synthesis() {
+    log_info "Phase 5: Synthesizing cross-cutting insights..."
+
+    local prompt
+    prompt=$(build_synthesis_prompt)
+    local allowed_tools="Read,Glob,Grep,Write"
+
+    local session_id
+    session_id=$(run_claude_fork "$BASE_SESSION_ID" "$prompt" "$allowed_tools")
+
+    if [[ -z "$session_id" || "$session_id" == "null" ]]; then
+        log_error "Synthesis session failed"
+        return 1
+    fi
+
+    log_session "synthesis" "Synthesis session: $session_id"
+
+    # Update state
+    local tmp
+    tmp=$(mktemp)
+    jq '.synthesis = "complete"' "$OUTPUT_DIR/.glean-state.json" > "$tmp"
+    mv "$tmp" "$OUTPUT_DIR/.glean-state.json"
+
+    log_info "Synthesis complete"
+
+    if [[ ! -f "$OUTPUT_DIR/synthesis.md" ]]; then
+        log_error "Synthesis did not produce synthesis.md"
+        return 1
+    fi
+}
+
 main() {
     if [[ $# -eq 0 ]]; then
         usage
