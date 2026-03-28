@@ -396,6 +396,18 @@ run_discovery() {
     echo "$session_id"
 }
 
+human_checkpoint() {
+    save_state "checkpoint" ""
+    echo ""
+    echo "Discovery complete. Review and edit:"
+    echo "  $OUTPUT_DIR/reference-projects.md"
+    echo ""
+    echo "Add or remove repos as needed, then re-run:"
+    echo "  glean --continue $SPEC_FILE"
+    echo ""
+    exit 10
+}
+
 main() {
     if [[ $# -eq 0 ]]; then
         usage
