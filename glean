@@ -356,6 +356,46 @@ $(cat "$spec_path")"
     echo "$session_id"
 }
 
+build_discovery_prompt() {
+    cat <<EOF
+Search the web and GitHub for open source projects that have useful
+solutions, architectural patterns, or lessons learned relevant to the
+spec you just read. Look across the key problem domains the spec
+addresses. Dig deep. Find projects that can deliver powerful
+lessons-learned.
+
+Write your findings to ${OUTPUT_DIR}/reference-projects.md with a
+description of each project and why it is relevant. Include the
+GitHub URL for each project.
+EOF
+}
+
+run_discovery() {
+    log_info "Phase 2: Discovering relevant open source projects..."
+
+    local prompt
+    prompt=$(build_discovery_prompt)
+
+    local allowed_tools="Read,Bash,WebSearch,WebFetch,Glob,Grep,Write,Agent"
+    local session_id
+    session_id=$(run_claude_fork "$BASE_SESSION_ID" "$prompt" "$allowed_tools")
+
+    if [[ -z "$session_id" || "$session_id" == "null" ]]; then
+        log_error "Discovery session failed"
+        return 1
+    fi
+
+    log_info "Discovery complete (session: $session_id)"
+    save_state "checkpoint" "$session_id"
+
+    if [[ ! -f "$OUTPUT_DIR/reference-projects.md" ]]; then
+        log_error "Discovery did not produce reference-projects.md"
+        return 1
+    fi
+
+    echo "$session_id"
+}
+
 main() {
     if [[ $# -eq 0 ]]; then
         usage
