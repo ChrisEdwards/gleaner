@@ -17,7 +17,7 @@ EOF
 outdir1="$tmpdir1/gleanings"
 
 export MOCK_CLAUDE_RESPONSE='{"session_id":"base-001","result":"spec understood","cost_usd":0.01}'
-output=$(bash "$GLEAN_SCRIPT" --output-dir "$outdir1" "$spec1" 2>&1)
+output=$(bash "$GLEANER_SCRIPT" --output-dir "$outdir1" "$spec1" 2>&1)
 rc=$?
 # Discovery won't produce reference-projects.md with mock claude, so it should error
 # (exit 1) since the file is missing after discovery. That's correct behavior.
@@ -36,19 +36,19 @@ EOF
 outdir2="$tmpdir2/gleanings"
 
 export MOCK_CLAUDE_RESPONSE='{"session_id":"sess-002","result":"changes were COSMETIC only","cost_usd":0.01}'
-output=$(bash "$GLEAN_SCRIPT" \
+output=$(bash "$GLEANER_SCRIPT" \
     --repos https://github.com/test/alpha https://github.com/test/beta \
     --output-dir "$outdir2" --workers 2 --max-repos 5 "$spec2" 2>&1)
 rc=$?
 assert_exit_code "0" "$rc" "pre-seeded repos run succeeds"
 
 # State file tracks both repos
-count=$(jq '.repos | length' "$outdir2/.glean-state.json")
+count=$(jq '.repos | length' "$outdir2/.gleaner-state.json")
 assert_equals "2" "$count" "both repos in state"
 
 # Scenario 3: --continue with state file (repos already complete, runs synthesis)
 export MOCK_CLAUDE_RESPONSE='{"session_id":"synth-003","result":"synthesis done","cost_usd":0.02}'
-output=$(bash "$GLEAN_SCRIPT" --continue --output-dir "$outdir2" "$spec2" 2>&1)
+output=$(bash "$GLEANER_SCRIPT" --continue --output-dir "$outdir2" "$spec2" 2>&1)
 rc=$?
 # All repos complete, should just run synthesis. May fail since mock doesn't create files.
 # That's OK — we're testing the flow, not the output.

@@ -2,20 +2,20 @@
 set -euo pipefail
 
 # --- Constants ---
-_glean_dir() {
+_gleaner_dir() {
     local dir
     dir="$(dirname "$(readlink -f "$0" 2>/dev/null || realpath "$0" 2>/dev/null || echo "$0")")"
     echo "$dir"
 }
 
-GLEAN_VERSION="$(cat "$(_glean_dir)/VERSION" 2>/dev/null || cat "$(_glean_dir)/.glean-version" 2>/dev/null || echo "0.1.0")"
+GLEANER_VERSION="$(cat "$(_gleaner_dir)/VERSION" 2>/dev/null || cat "$(_gleaner_dir)/.gleaner-version" 2>/dev/null || echo "0.1.0")"
 DEFAULT_OUTPUT_DIR="./gleanings"
 DEFAULT_MODEL="opus"
 DEFAULT_EFFORT="high"
 DEFAULT_WORKERS=3
 DEFAULT_MAX_REPOS=10
 MAX_CRITIQUE_PASSES=8
-CLONE_DIR="/tmp/glean"
+CLONE_DIR="/tmp/gleaner"
 
 # --- Globals (set by parse_args) ---
 SPEC_FILE=""
@@ -39,14 +39,14 @@ check_dependencies() {
     command -v jq >/dev/null 2>&1     || missing+=("jq")
 
     if [[ ${#missing[@]} -gt 0 ]]; then
-        echo "glean: missing required dependencies: ${missing[*]}" >&2
+        echo "gleaner: missing required dependencies: ${missing[*]}" >&2
         echo "Install them and try again." >&2
         return 3
     fi
 
     # Check bash version
     if [[ "${BASH_VERSINFO[0]}" -lt 4 ]]; then
-        echo "glean: requires bash 4.0+, found $BASH_VERSION" >&2
+        echo "gleaner: requires bash 4.0+, found $BASH_VERSION" >&2
         return 3
     fi
     return 0
@@ -54,7 +54,7 @@ check_dependencies() {
 
 usage() {
     cat <<'USAGE'
-Usage: glean [options] <spec-file>
+Usage: gleaner [options] <spec-file>
 
 Automated spec enhancement through open source intelligence.
 
@@ -96,7 +96,7 @@ parse_args() {
                 exit 0
                 ;;
             --version)
-                echo "glean $GLEAN_VERSION"
+                echo "gleaner $GLEANER_VERSION"
                 exit 0
                 ;;
             --continue)
@@ -104,7 +104,7 @@ parse_args() {
                 shift
                 ;;
             --output-dir)
-                [[ $# -lt 2 ]] && { echo "glean: --output-dir requires a value" >&2; return 2; }
+                [[ $# -lt 2 ]] && { echo "gleaner: --output-dir requires a value" >&2; return 2; }
                 OUTPUT_DIR="$2"
                 shift 2
                 ;;
@@ -116,22 +116,22 @@ parse_args() {
                 done
                 ;;
             --max-repos)
-                [[ $# -lt 2 ]] && { echo "glean: --max-repos requires a value" >&2; return 2; }
+                [[ $# -lt 2 ]] && { echo "gleaner: --max-repos requires a value" >&2; return 2; }
                 MAX_REPOS="$2"
                 shift 2
                 ;;
             --model)
-                [[ $# -lt 2 ]] && { echo "glean: --model requires a value" >&2; return 2; }
+                [[ $# -lt 2 ]] && { echo "gleaner: --model requires a value" >&2; return 2; }
                 MODEL="$2"
                 shift 2
                 ;;
             --effort)
-                [[ $# -lt 2 ]] && { echo "glean: --effort requires a value" >&2; return 2; }
+                [[ $# -lt 2 ]] && { echo "gleaner: --effort requires a value" >&2; return 2; }
                 EFFORT="$2"
                 shift 2
                 ;;
             --workers)
-                [[ $# -lt 2 ]] && { echo "glean: --workers requires a value" >&2; return 2; }
+                [[ $# -lt 2 ]] && { echo "gleaner: --workers requires a value" >&2; return 2; }
                 WORKERS="$2"
                 shift 2
                 ;;
@@ -144,14 +144,14 @@ parse_args() {
                 shift
                 ;;
             --*)
-                echo "glean: unknown option: $1" >&2
+                echo "gleaner: unknown option: $1" >&2
                 return 2
                 ;;
             *)
                 if [[ -z "$SPEC_FILE" ]]; then
                     SPEC_FILE="$1"
                 else
-                    echo "glean: unexpected argument: $1" >&2
+                    echo "gleaner: unexpected argument: $1" >&2
                     return 2
                 fi
                 shift
@@ -160,21 +160,21 @@ parse_args() {
     done
 
     if [[ -z "$SPEC_FILE" ]]; then
-        echo "glean: spec file is required" >&2
+        echo "gleaner: spec file is required" >&2
         return 2
     fi
 }
 
 setup_logging() {
     mkdir -p "$OUTPUT_DIR/.logs"
-    touch "$OUTPUT_DIR/.logs/glean.log"
+    touch "$OUTPUT_DIR/.logs/gleaner.log"
 }
 
 log_info() {
     local msg="$1"
     local timestamp
     timestamp="$(date '+%Y-%m-%d %H:%M:%S')"
-    echo "[$timestamp] INFO: $msg" >> "$OUTPUT_DIR/.logs/glean.log"
+    echo "[$timestamp] INFO: $msg" >> "$OUTPUT_DIR/.logs/gleaner.log"
     if [[ "$VERBOSE" == "true" ]]; then
         echo "[$timestamp] INFO: $msg" >&2
     fi
@@ -184,8 +184,8 @@ log_error() {
     local msg="$1"
     local timestamp
     timestamp="$(date '+%Y-%m-%d %H:%M:%S')"
-    echo "[$timestamp] ERROR: $msg" >> "$OUTPUT_DIR/.logs/glean.log"
-    echo "glean: $msg" >&2
+    echo "[$timestamp] ERROR: $msg" >> "$OUTPUT_DIR/.logs/gleaner.log"
+    echo "gleaner: $msg" >&2
 }
 
 log_session() {
@@ -199,8 +199,8 @@ save_state() {
 
     # Read existing repos state if file exists, otherwise empty object
     local repos_json="{}"
-    if [[ -f "$OUTPUT_DIR/.glean-state.json" ]]; then
-        repos_json=$(jq -r '.repos // {}' "$OUTPUT_DIR/.glean-state.json")
+    if [[ -f "$OUTPUT_DIR/.gleaner-state.json" ]]; then
+        repos_json=$(jq -r '.repos // {}' "$OUTPUT_DIR/.gleaner-state.json")
     fi
 
     jq -n \
@@ -216,17 +216,17 @@ save_state() {
             discovery_session_id: $disc,
             repos: $repos,
             synthesis: "pending"
-        }' > "$OUTPUT_DIR/.glean-state.json"
+        }' > "$OUTPUT_DIR/.gleaner-state.json"
 }
 
 load_state_field() {
     local field="$1"
-    jq -r "$field" "$OUTPUT_DIR/.glean-state.json"
+    jq -r "$field" "$OUTPUT_DIR/.gleaner-state.json"
 }
 
 update_repo_state() {
     local repo_name="$1" status="$2" session_id="$3" step="$4" critique_passes="$5"
-    local lockdir="$OUTPUT_DIR/.glean-state.lock"
+    local lockdir="$OUTPUT_DIR/.gleaner-state.lock"
 
     # Acquire lock (mkdir is atomic on POSIX filesystems)
     local retries=0
@@ -245,7 +245,7 @@ update_repo_state() {
         --arg step "$step" \
         --argjson passes "$critique_passes" \
         '.repos[$repo] = {status: $status, session_id: $sess, step: $step, critique_passes: $passes}' \
-        "$OUTPUT_DIR/.glean-state.json" > "$tmp" && mv "$tmp" "$OUTPUT_DIR/.glean-state.json"; then
+        "$OUTPUT_DIR/.gleaner-state.json" > "$tmp" && mv "$tmp" "$OUTPUT_DIR/.gleaner-state.json"; then
         rc=0
     else
         rc=1
@@ -423,7 +423,7 @@ human_checkpoint() {
     echo "  $OUTPUT_DIR/reference-projects.md"
     echo ""
     echo "Add or remove repos as needed, then re-run:"
-    echo "  glean --continue $SPEC_FILE"
+    echo "  gleaner --continue $SPEC_FILE"
     echo ""
     exit 10
 }
@@ -521,16 +521,16 @@ analyze_repo() {
     local current_step="clone"
     local repo_session=""
     local critique_passes=0
-    if [[ -f "$OUTPUT_DIR/.glean-state.json" ]]; then
+    if [[ -f "$OUTPUT_DIR/.gleaner-state.json" ]]; then
         local repo_status
-        repo_status=$(jq -r --arg r "$repo_name" '.repos[$r].status // "pending"' "$OUTPUT_DIR/.glean-state.json")
+        repo_status=$(jq -r --arg r "$repo_name" '.repos[$r].status // "pending"' "$OUTPUT_DIR/.gleaner-state.json")
         if [[ "$repo_status" == "complete" ]]; then
             log_info "[$short_name] Already complete, skipping"
             return 0
         elif [[ "$repo_status" == "in-progress" ]]; then
-            current_step=$(jq -r --arg r "$repo_name" '.repos[$r].step' "$OUTPUT_DIR/.glean-state.json")
-            repo_session=$(jq -r --arg r "$repo_name" '.repos[$r].session_id' "$OUTPUT_DIR/.glean-state.json")
-            critique_passes=$(jq -r --arg r "$repo_name" '.repos[$r].critique_passes' "$OUTPUT_DIR/.glean-state.json")
+            current_step=$(jq -r --arg r "$repo_name" '.repos[$r].step' "$OUTPUT_DIR/.gleaner-state.json")
+            repo_session=$(jq -r --arg r "$repo_name" '.repos[$r].session_id' "$OUTPUT_DIR/.gleaner-state.json")
+            critique_passes=$(jq -r --arg r "$repo_name" '.repos[$r].critique_passes' "$OUTPUT_DIR/.gleaner-state.json")
             log_info "[$short_name] Resuming from step: $current_step"
         fi
     fi
@@ -696,8 +696,8 @@ run_synthesis() {
     # Update state
     local tmp
     tmp=$(mktemp)
-    jq '.synthesis = "complete"' "$OUTPUT_DIR/.glean-state.json" > "$tmp"
-    mv "$tmp" "$OUTPUT_DIR/.glean-state.json"
+    jq '.synthesis = "complete"' "$OUTPUT_DIR/.gleaner-state.json" > "$tmp"
+    mv "$tmp" "$OUTPUT_DIR/.gleaner-state.json"
 
     log_info "Synthesis complete"
 
@@ -711,7 +711,7 @@ cleanup_on_exit() {
     local exit_code=$?
     # Save state if we were mid-pipeline
     if [[ -n "$BASE_SESSION_ID" && -d "$OUTPUT_DIR" ]]; then
-        log_info "Interrupted. State saved to $OUTPUT_DIR/.glean-state.json"
+        log_info "Interrupted. State saved to $OUTPUT_DIR/.gleaner-state.json"
     fi
     # Clean up any remaining cloned repos
     if [[ -d "$CLONE_DIR" ]]; then
@@ -733,7 +733,7 @@ main() {
 
     case "${1:-}" in
         --help|-h) usage; exit 0 ;;
-        --version) echo "glean $GLEAN_VERSION"; exit 0 ;;
+        --version) echo "gleaner $GLEANER_VERSION"; exit 0 ;;
     esac
 
     parse_args "$@"
@@ -748,7 +748,7 @@ main() {
 
     if [[ "$CONTINUE_MODE" == "true" ]]; then
         # Resume from state file or reference-projects.md
-        if [[ -f "$OUTPUT_DIR/.glean-state.json" ]]; then
+        if [[ -f "$OUTPUT_DIR/.gleaner-state.json" ]]; then
             local saved_phase
             saved_phase=$(load_state_field ".phase")
             local saved_base
@@ -763,7 +763,7 @@ main() {
                 # Collect repos from state (resume in-progress and pending)
                 while IFS= read -r url; do
                     [[ -n "$url" ]] && REPO_URLS+=("$url")
-                done < <(jq -r '.repos | to_entries[] | select(.value.status != "complete") | .key' "$OUTPUT_DIR/.glean-state.json" 2>/dev/null | while read -r name; do
+                done < <(jq -r '.repos | to_entries[] | select(.value.status != "complete") | .key' "$OUTPUT_DIR/.gleaner-state.json" 2>/dev/null | while read -r name; do
                     # Reconstruct URL from name
                     echo "https://github.com/$name"
                 done)
@@ -774,7 +774,7 @@ main() {
                         local name
                         name=$(repo_name_from_url "$url")
                         local in_state
-                        in_state=$(jq -r --arg r "$name" '.repos[$r].status // "absent"' "$OUTPUT_DIR/.glean-state.json")
+                        in_state=$(jq -r --arg r "$name" '.repos[$r].status // "absent"' "$OUTPUT_DIR/.gleaner-state.json")
                         if [[ "$in_state" == "absent" ]]; then
                             REPO_URLS+=("$url")
                         fi
@@ -832,7 +832,7 @@ main() {
 
     # Report results
     echo ""
-    echo "Glean complete."
+    echo "Gleaner complete."
     echo "  Analyses: $OUTPUT_DIR/analysis-*.md"
     if [[ -f "$OUTPUT_DIR/synthesis.md" ]]; then
         echo "  Synthesis: $OUTPUT_DIR/synthesis.md"

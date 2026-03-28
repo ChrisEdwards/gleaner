@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 source "$(dirname "$0")/helpers.sh"
-source "$GLEAN_SCRIPT"
+source "$GLEANER_SCRIPT"
 
 tmpdir=$(create_temp_dir)
 

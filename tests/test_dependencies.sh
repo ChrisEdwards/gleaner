@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 source "$(dirname "$0")/helpers.sh"
 
-# Source glean to get access to check_dependencies function
-source "$GLEAN_SCRIPT"
+# Source gleaner to get access to check_dependencies function
+source "$GLEANER_SCRIPT"
 
 # With real tools available, check_dependencies should pass
 output=$(check_dependencies 2>&1)

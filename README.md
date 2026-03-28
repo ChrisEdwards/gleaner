@@ -1,4 +1,4 @@
-# Glean
+# Gleaner
 
 <p align="center">
   <img src="docs/gleaner.png" alt="The Gleaning — AI-powered combine harvesting insights from open source fields" width="700" />
@@ -6,7 +6,7 @@
 
 Automated spec enhancement through open source intelligence.
 
-Glean reads a design spec, discovers relevant open source projects, deeply analyzes each one through the lens of the spec, and synthesizes cross-cutting insights into concrete spec enhancements.
+Gleaner reads a design spec, discovers relevant open source projects, deeply analyzes each one through the lens of the spec, and synthesizes cross-cutting insights into concrete spec enhancements.
 
 ## Requirements
 
@@ -18,21 +18,21 @@ Glean reads a design spec, discovers relevant open source projects, deeply analy
 ## Install
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/{owner}/glean/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/{owner}/gleaner/main/install.sh | bash
 ```
 
 Or clone and use directly:
 
 ```bash
-git clone https://github.com/{owner}/glean.git
-cd glean
-./glean --help
+git clone https://github.com/{owner}/gleaner.git
+cd gleaner
+./gleaner --help
 ```
 
 ## Usage
 
 ```
-glean [options] <spec-file>
+gleaner [options] <spec-file>
 
 Options:
   --continue            Resume after editing the discovery list or after interruption
@@ -50,19 +50,19 @@ Options:
 
 ```bash
 # 1. Discover relevant projects
-glean design-docs/my-spec.md
+gleaner design-docs/my-spec.md
 
 # 2. Review and edit the candidate list
 vim gleanings/reference-projects.md
 
 # 3. Run deep analysis + synthesis
-glean --continue design-docs/my-spec.md
+gleaner --continue design-docs/my-spec.md
 ```
 
 ### Skip discovery with known repos
 
 ```bash
-glean design-docs/my-spec.md \
+gleaner design-docs/my-spec.md \
   --repos https://github.com/m-bain/whisperx https://github.com/WyattBlue/auto-editor
 ```
 
@@ -89,11 +89,11 @@ All sessions fork from the base, sharing cached spec context for efficiency.
 
 ## Crash recovery
 
-Glean persists pipeline state to `.glean-state.json`. If interrupted, `--continue` resumes from where it left off — completed repos are skipped, in-progress repos resume at their current step.
+Gleaner persists pipeline state to `.gleaner-state.json`. If interrupted, `--continue` resumes from where it left off — completed repos are skipped, in-progress repos resume at their current step.
 
 ## Credits
 
-Glean was inspired by [Jeff Emanuel](https://github.com/Dicklesworthstone) ([@doodlestein](https://x.com/doodlestein) on X/Twitter). The analysis prompts and the core idea of using iterative AI critique loops to refine specs against real-world open source projects both come from Jeff. His project [automated_plan_reviser_pro](https://github.com/Dicklesworthstone/automated_plan_reviser_pro) pioneered the automated multi-round revision workflow that glean builds on.
+Gleaner was inspired by [Jeff Emanuel](https://github.com/Dicklesworthstone) ([@doodlestein](https://x.com/doodlestein) on X/Twitter). The analysis prompts and the core idea of using iterative AI critique loops to refine specs against real-world open source projects both come from Jeff. His project [automated_plan_reviser_pro](https://github.com/Dicklesworthstone/automated_plan_reviser_pro) pioneered the automated multi-round revision workflow that gleaner builds on.
 
 ## License
 

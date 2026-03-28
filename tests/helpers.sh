@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Lightweight test harness for glean
+# Lightweight test harness for gleaner
 
 TESTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "$TESTS_DIR/.." && pwd)"
-GLEAN_SCRIPT="$PROJECT_DIR/glean"
+GLEANER_SCRIPT="$PROJECT_DIR/gleaner"
 
 _PASS_COUNT=0
 _FAIL_COUNT=0

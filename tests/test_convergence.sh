@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 source "$(dirname "$0")/helpers.sh"
-source "$GLEAN_SCRIPT"
+source "$GLEANER_SCRIPT"
 
 # "cosmetic" in response means converged
 assert_equals "true" "$(is_cosmetic "Changes were COSMETIC: minor wording fixes")" "detects COSMETIC"

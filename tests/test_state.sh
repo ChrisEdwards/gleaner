@@ -1,18 +1,18 @@
 #!/usr/bin/env bash
 source "$(dirname "$0")/helpers.sh"
-source "$GLEAN_SCRIPT"
+source "$GLEANER_SCRIPT"
 
 tmpdir=$(create_temp_dir)
 OUTPUT_DIR="$tmpdir/gleanings"
 mkdir -p "$OUTPUT_DIR"
 
-# save_state creates .glean-state.json with correct structure
+# save_state creates .gleaner-state.json with correct structure
 SPEC_FILE="my-spec.md"
 BASE_SESSION_ID="base-123"
 save_state "discovery" ""
-assert_file_exists "$OUTPUT_DIR/.glean-state.json" "state file created"
+assert_file_exists "$OUTPUT_DIR/.gleaner-state.json" "state file created"
 
-content=$(cat "$OUTPUT_DIR/.glean-state.json")
+content=$(cat "$OUTPUT_DIR/.gleaner-state.json")
 assert_contains "$content" '"base_session_id": "base-123"' "state has base session"
 assert_contains "$content" '"spec_file": "my-spec.md"' "state has spec file"
 assert_contains "$content" '"phase": "discovery"' "state has phase"
@@ -26,7 +26,7 @@ assert_equals "base-123" "$loaded_base" "load_state reads base session"
 
 # update_repo_state tracks per-repo state
 update_repo_state "m-bain/whisperx" "in-progress" "sess-456" "initial-analysis" 0
-content=$(cat "$OUTPUT_DIR/.glean-state.json")
+content=$(cat "$OUTPUT_DIR/.gleaner-state.json")
 assert_contains "$content" "m-bain/whisperx" "repo state saved"
 assert_contains "$content" '"status": "in-progress"' "repo status saved"
 assert_contains "$content" '"session_id": "sess-456"' "repo session saved"
