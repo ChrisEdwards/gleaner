@@ -252,6 +252,83 @@ repo_short_name() {
     echo "$repo_name" | cut -d'/' -f2
 }
 
+run_claude_session() {
+    local prompt="$1"
+    local allowed_tools="${2:-}"
+    local extra_args=("${@:3}")
+
+    local cmd=(claude -p "$prompt"
+        --model "$MODEL" --effort "$EFFORT"
+        --output-format json
+        --permission-mode bypassPermissions)
+
+    if [[ -n "$allowed_tools" ]]; then
+        cmd+=(--allowedTools "$allowed_tools")
+    fi
+    cmd+=("${extra_args[@]}")
+
+    local output
+    if [[ "$VERBOSE" == "true" ]]; then
+        output=$("${cmd[@]}" 2>&2)
+    else
+        output=$("${cmd[@]}" 2>/dev/null)
+    fi
+
+    echo "$output" | jq -r '.session_id'
+}
+
+run_claude_fork() {
+    local base_session="$1" prompt="$2"
+    local allowed_tools="${3:-}"
+    local extra_args=("${@:4}")
+
+    local cmd=(claude -p "$prompt"
+        --resume "$base_session" --fork-session
+        --model "$MODEL" --effort "$EFFORT"
+        --output-format json
+        --permission-mode bypassPermissions)
+
+    if [[ -n "$allowed_tools" ]]; then
+        cmd+=(--allowedTools "$allowed_tools")
+    fi
+    cmd+=("${extra_args[@]}")
+
+    local output
+    if [[ "$VERBOSE" == "true" ]]; then
+        output=$("${cmd[@]}" 2>&2)
+    else
+        output=$("${cmd[@]}" 2>/dev/null)
+    fi
+
+    echo "$output" | jq -r '.session_id'
+}
+
+run_claude_resume() {
+    local session_id="$1" prompt="$2"
+    local allowed_tools="${3:-}"
+    local extra_args=("${@:4}")
+
+    local cmd=(claude -p "$prompt"
+        --resume "$session_id"
+        --model "$MODEL" --effort "$EFFORT"
+        --output-format json
+        --permission-mode bypassPermissions)
+
+    if [[ -n "$allowed_tools" ]]; then
+        cmd+=(--allowedTools "$allowed_tools")
+    fi
+    cmd+=("${extra_args[@]}")
+
+    local output
+    if [[ "$VERBOSE" == "true" ]]; then
+        output=$("${cmd[@]}" 2>&2)
+    else
+        output=$("${cmd[@]}" 2>/dev/null)
+    fi
+
+    echo "$output" | jq -r '.result'
+}
+
 main() {
     if [[ $# -eq 0 ]]; then
         usage
