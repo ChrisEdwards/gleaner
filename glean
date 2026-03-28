@@ -698,6 +698,25 @@ run_synthesis() {
     fi
 }
 
+cleanup_on_exit() {
+    local exit_code=$?
+    # Save state if we were mid-pipeline
+    if [[ -n "$BASE_SESSION_ID" && -d "$OUTPUT_DIR" ]]; then
+        log_info "Interrupted. State saved to $OUTPUT_DIR/.glean-state.json"
+    fi
+    # Clean up any remaining cloned repos
+    if [[ -d "$CLONE_DIR" ]]; then
+        find "$CLONE_DIR" -type f -delete 2>/dev/null || true
+        find "$CLONE_DIR" -type d -delete 2>/dev/null || true
+    fi
+    exit "$exit_code"
+}
+
+setup_signal_handlers() {
+    trap 'cleanup_on_exit' EXIT
+    trap 'exit 10' INT TERM
+}
+
 main() {
     if [[ $# -eq 0 ]]; then
         usage
