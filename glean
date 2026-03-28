@@ -329,6 +329,33 @@ run_claude_resume() {
     echo "$output" | jq -r '.result'
 }
 
+create_base_session() {
+    local spec_path="$1"
+
+    if [[ ! -f "$spec_path" ]]; then
+        log_error "spec file not found: $spec_path"
+        return 2
+    fi
+
+    log_info "Phase 1: Reading spec file..."
+    local prompt
+    prompt="Read this spec and confirm you understand the key domains, constraints, and goals.
+
+$(cat "$spec_path")"
+
+    local session_id
+    session_id=$(run_claude_session "$prompt")
+
+    if [[ -z "$session_id" || "$session_id" == "null" ]]; then
+        log_error "Failed to create base session"
+        return 1
+    fi
+
+    BASE_SESSION_ID="$session_id"
+    log_info "Base session created: $BASE_SESSION_ID"
+    echo "$session_id"
+}
+
 main() {
     if [[ $# -eq 0 ]]; then
         usage
