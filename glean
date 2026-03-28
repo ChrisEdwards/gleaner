@@ -187,6 +187,53 @@ log_session() {
     echo "$content" >> "$OUTPUT_DIR/.logs/${name}.log"
 }
 
+save_state() {
+    local phase="$1"
+    local discovery_session_id="${2:-}"
+
+    # Read existing repos state if file exists, otherwise empty object
+    local repos_json="{}"
+    if [[ -f "$OUTPUT_DIR/.glean-state.json" ]]; then
+        repos_json=$(jq -r '.repos // {}' "$OUTPUT_DIR/.glean-state.json")
+    fi
+
+    jq -n \
+        --arg base "$BASE_SESSION_ID" \
+        --arg spec "$SPEC_FILE" \
+        --arg phase "$phase" \
+        --arg disc "$discovery_session_id" \
+        --argjson repos "$repos_json" \
+        '{
+            base_session_id: $base,
+            spec_file: $spec,
+            phase: $phase,
+            discovery_session_id: $disc,
+            repos: $repos,
+            synthesis: "pending"
+        }' > "$OUTPUT_DIR/.glean-state.json"
+}
+
+load_state_field() {
+    local field="$1"
+    jq -r "$field" "$OUTPUT_DIR/.glean-state.json"
+}
+
+update_repo_state() {
+    local repo_name="$1" status="$2" session_id="$3" step="$4" critique_passes="$5"
+
+    local tmp
+    tmp=$(mktemp)
+    jq \
+        --arg repo "$repo_name" \
+        --arg status "$status" \
+        --arg sess "$session_id" \
+        --arg step "$step" \
+        --argjson passes "$critique_passes" \
+        '.repos[$repo] = {status: $status, session_id: $sess, step: $step, critique_passes: $passes}' \
+        "$OUTPUT_DIR/.glean-state.json" > "$tmp"
+    mv "$tmp" "$OUTPUT_DIR/.glean-state.json"
+}
+
 main() {
     if [[ $# -eq 0 ]]; then
         usage
