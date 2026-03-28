@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO="owner/gleaner"
+REPO="ChrisEdwards/gleaner"
 INSTALL_DIR="${INSTALL_DIR:-$HOME/.local/bin}"
 
 echo "Installing gleaner..."
