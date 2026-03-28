@@ -25,6 +25,7 @@ assert_contains "$log_content" "--fork-session" "fork passes --fork-session"
 export MOCK_CLAUDE_LOG="$tmpdir/claude2.log"
 export MOCK_CLAUDE_RESPONSE='{"session_id":"fork-456","result":"resumed"}'
 result=$(run_claude_resume "fork-456" "resume prompt" "Read,Edit,Write")
+assert_equals "resumed" "$result" "resume returns .result"
 log_content=$(cat "$tmpdir/claude2.log")
 assert_contains "$log_content" "--resume fork-456" "resume passes --resume"
 assert_not_contains "$log_content" "--fork-session" "resume does not pass --fork-session"
