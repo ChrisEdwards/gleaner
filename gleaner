@@ -180,6 +180,14 @@ log_info() {
     fi
 }
 
+log_status() {
+    local msg="$1"
+    local timestamp
+    timestamp="$(date '+%Y-%m-%d %H:%M:%S')"
+    echo "[$timestamp] INFO: $msg" >> "$OUTPUT_DIR/.logs/gleaner.log"
+    echo "==> $msg" >&2
+}
+
 log_error() {
     local msg="$1"
     local timestamp
@@ -357,7 +365,7 @@ create_base_session() {
         return 2
     fi
 
-    log_info "Phase 1: Reading spec file..."
+    log_status "Phase 1/5: Ingesting spec..."
     local prompt
     prompt="Read this spec and confirm you understand the key domains, constraints, and goals.
 
@@ -372,7 +380,7 @@ $(cat "$spec_path")"
     fi
 
     BASE_SESSION_ID="$session_id"
-    log_info "Base session created: $BASE_SESSION_ID"
+    log_status "Spec ingested (session: $BASE_SESSION_ID)"
     echo "$session_id"
 }
 
@@ -391,7 +399,7 @@ EOF
 }
 
 run_discovery() {
-    log_info "Phase 2: Discovering relevant open source projects..."
+    log_status "Phase 2/5: Discovering relevant open source projects..."
 
     local prompt
     prompt=$(build_discovery_prompt)
@@ -405,7 +413,7 @@ run_discovery() {
         return 1
     fi
 
-    log_info "Discovery complete (session: $session_id)"
+    log_status "Discovery complete"
     save_state "checkpoint" "$session_id"
 
     if [[ ! -f "$OUTPUT_DIR/reference-projects.md" ]]; then
@@ -525,13 +533,13 @@ analyze_repo() {
         local repo_status
         repo_status=$(jq -r --arg r "$repo_name" '.repos[$r].status // "pending"' "$OUTPUT_DIR/.gleaner-state.json")
         if [[ "$repo_status" == "complete" ]]; then
-            log_info "[$short_name] Already complete, skipping"
+            log_status "[$short_name] Already complete, skipping"
             return 0
         elif [[ "$repo_status" == "in-progress" ]]; then
             current_step=$(jq -r --arg r "$repo_name" '.repos[$r].step' "$OUTPUT_DIR/.gleaner-state.json")
             repo_session=$(jq -r --arg r "$repo_name" '.repos[$r].session_id' "$OUTPUT_DIR/.gleaner-state.json")
             critique_passes=$(jq -r --arg r "$repo_name" '.repos[$r].critique_passes' "$OUTPUT_DIR/.gleaner-state.json")
-            log_info "[$short_name] Resuming from step: $current_step"
+            log_status "[$short_name] Resuming from step: $current_step"
         fi
     fi
 
@@ -547,7 +555,7 @@ analyze_repo() {
 
     # Step 2: Initial analysis
     if [[ "$current_step" == "initial-analysis" ]]; then
-        log_info "[$short_name] Step 1/4: Initial analysis..."
+        log_status "[$short_name] Step 1/4: Initial analysis..."
         local prompt
         prompt=$(build_initial_analysis_prompt "$clone_path" "$output_path" "$spec_name")
         repo_session=$(run_claude_fork "$BASE_SESSION_ID" "$prompt" "$analysis_tools" "${extra_args[@]}")
@@ -563,7 +571,7 @@ analyze_repo() {
 
     # Step 3: Deep analysis
     if [[ "$current_step" == "deep-analysis" ]]; then
-        log_info "[$short_name] Step 2/4: Going deeper..."
+        log_status "[$short_name] Step 2/4: Going deeper..."
         local prompt
         prompt=$(build_deep_analysis_prompt "$output_path")
         run_claude_resume "$repo_session" "$prompt" "$analysis_tools" "${extra_args[@]}" >/dev/null
@@ -573,7 +581,7 @@ analyze_repo() {
 
     # Step 4: Structural inversion
     if [[ "$current_step" == "inversion" ]]; then
-        log_info "[$short_name] Step 3/4: Structural inversion..."
+        log_status "[$short_name] Step 3/4: Structural inversion..."
         local prompt
         prompt=$(build_inversion_prompt "$repo_name" "$output_path")
         run_claude_resume "$repo_session" "$prompt" "$analysis_tools" "${extra_args[@]}" >/dev/null
@@ -588,7 +596,7 @@ analyze_repo() {
 
         while [[ $critique_passes -lt $MAX_CRITIQUE_PASSES ]]; do
             critique_passes=$((critique_passes + 1))
-            log_info "[$short_name] Step 4/4: Critique pass $critique_passes..."
+            log_status "[$short_name] Step 4/4: Critique pass $critique_passes..."
 
             local result
             result=$(run_claude_resume "$repo_session" "$critique_prompt" "$critique_tools")
@@ -608,7 +616,7 @@ analyze_repo() {
     # Mark complete and clean up
     update_repo_state "$repo_name" "complete" "$repo_session" "critique" "$critique_passes"
     cleanup_repo "$clone_path"
-    log_info "[$short_name] Analysis complete"
+    log_status "[$short_name] Analysis complete"
     return 0
 }
 
@@ -618,7 +626,7 @@ run_parallel_analysis() {
     local repos_total=${#REPO_URLS[@]}
     local failed_repos=()
 
-    log_info "Phase 4: Analyzing $repos_total repos with $WORKERS workers..."
+    log_status "Phase 4/5: Analyzing $repos_total repos with $WORKERS workers..."
     save_state "deep-dives" ""
 
     while [[ $repos_started -lt $repos_total ]] || [[ ${#pids[@]} -gt 0 ]]; do
@@ -677,7 +685,7 @@ EOF
 }
 
 run_synthesis() {
-    log_info "Phase 5: Synthesizing cross-cutting insights..."
+    log_status "Phase 5/5: Synthesizing cross-cutting insights..."
 
     local prompt
     prompt=$(build_synthesis_prompt)
