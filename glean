@@ -723,7 +723,6 @@ main() {
         exit 2
     fi
 
-    # Handle --help and --version before parse_args for early exit
     case "${1:-}" in
         --help|-h) usage; exit 0 ;;
         --version) echo "glean $GLEAN_VERSION"; exit 0 ;;
@@ -732,8 +731,110 @@ main() {
     parse_args "$@"
     check_dependencies || exit $?
 
-    echo "glean: pipeline not yet implemented" >&2
-    exit 1
+    mkdir -p "$OUTPUT_DIR"
+    setup_logging
+    setup_signal_handlers
+
+    # Resolve REPO_URLS
+    REPO_URLS=()
+
+    if [[ "$CONTINUE_MODE" == "true" ]]; then
+        # Resume from state file or reference-projects.md
+        if [[ -f "$OUTPUT_DIR/.glean-state.json" ]]; then
+            local saved_phase
+            saved_phase=$(load_state_field ".phase")
+            local saved_base
+            saved_base=$(load_state_field ".base_session_id")
+
+            if [[ -n "$saved_base" && "$saved_base" != "null" ]]; then
+                BASE_SESSION_ID="$saved_base"
+                log_info "Resuming with base session: $BASE_SESSION_ID"
+            fi
+
+            if [[ "$saved_phase" == "deep-dives" ]]; then
+                # Collect repos from state (resume in-progress and pending)
+                while IFS= read -r url; do
+                    [[ -n "$url" ]] && REPO_URLS+=("$url")
+                done < <(jq -r '.repos | to_entries[] | select(.value.status != "complete") | .key' "$OUTPUT_DIR/.glean-state.json" 2>/dev/null | while read -r name; do
+                    # Reconstruct URL from name
+                    echo "https://github.com/$name"
+                done)
+
+                # Also add any not yet in state from reference-projects.md
+                if [[ -f "$OUTPUT_DIR/reference-projects.md" ]]; then
+                    while IFS= read -r url; do
+                        local name
+                        name=$(repo_name_from_url "$url")
+                        local in_state
+                        in_state=$(jq -r --arg r "$name" '.repos[$r].status // "absent"' "$OUTPUT_DIR/.glean-state.json")
+                        if [[ "$in_state" == "absent" ]]; then
+                            REPO_URLS+=("$url")
+                        fi
+                    done < <(extract_github_urls "$OUTPUT_DIR/reference-projects.md")
+                fi
+            fi
+        elif [[ -f "$OUTPUT_DIR/reference-projects.md" ]]; then
+            # No state file — read reference-projects.md (post-checkpoint)
+            while IFS= read -r url; do
+                [[ -n "$url" ]] && REPO_URLS+=("$url")
+            done < <(extract_github_urls "$OUTPUT_DIR/reference-projects.md")
+        else
+            log_error "No state file or reference-projects.md found. Run without --continue first."
+            exit 2
+        fi
+    elif [[ ${#PRESEEDED_REPOS[@]} -gt 0 ]]; then
+        # Pre-seeded repos — skip discovery
+        REPO_URLS=("${PRESEEDED_REPOS[@]}")
+    fi
+
+    # Phase 1: Create base session (if not resuming with one)
+    if [[ -z "$BASE_SESSION_ID" ]]; then
+        BASE_SESSION_ID=$(create_base_session "$SPEC_FILE") || exit $?
+        save_state "ingestion" ""
+    fi
+
+    # If no repos yet, run discovery + checkpoint
+    if [[ ${#REPO_URLS[@]} -eq 0 && "$CONTINUE_MODE" != "true" ]]; then
+        # Phase 2: Discovery
+        run_discovery || exit $?
+
+        # Phase 3: Human checkpoint
+        human_checkpoint
+        # human_checkpoint calls exit 10, never reaches here
+    fi
+
+    # Limit repos
+    if [[ ${#REPO_URLS[@]} -gt $MAX_REPOS ]]; then
+        log_info "Limiting to $MAX_REPOS repos (from ${#REPO_URLS[@]})"
+        REPO_URLS=("${REPO_URLS[@]:0:$MAX_REPOS}")
+    fi
+
+    # Phase 4: Parallel deep-dives
+    local analysis_failed=false
+    run_parallel_analysis || analysis_failed=true
+
+    # Phase 5: Synthesis (even if some repos failed)
+    local analysis_count
+    analysis_count=$(find "$OUTPUT_DIR" -name "analysis-*.md" 2>/dev/null | wc -l | tr -d ' ')
+    if [[ "$analysis_count" -gt 0 ]]; then
+        run_synthesis || log_error "Synthesis failed"
+    else
+        log_error "No analyses produced — skipping synthesis"
+    fi
+
+    # Report results
+    echo ""
+    echo "Glean complete."
+    echo "  Analyses: $OUTPUT_DIR/analysis-*.md"
+    if [[ -f "$OUTPUT_DIR/synthesis.md" ]]; then
+        echo "  Synthesis: $OUTPUT_DIR/synthesis.md"
+    fi
+    echo ""
+
+    if [[ "$analysis_failed" == "true" ]]; then
+        exit 1
+    fi
+    exit 0
 }
 
 [[ "${BASH_SOURCE[0]}" == "${0}" ]] && main "$@" || true
