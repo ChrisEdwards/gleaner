@@ -1,5 +1,9 @@
 # Glean
 
+<p align="center">
+  <img src="docs/gleaner.png" alt="The Gleaning — AI-powered combine harvesting insights from open source fields" width="700" />
+</p>
+
 Automated spec enhancement through open source intelligence.
 
 Glean reads a design spec, discovers relevant open source projects, deeply analyzes each one through the lens of the spec, and synthesizes cross-cutting insights into concrete spec enhancements.
