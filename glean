@@ -70,24 +70,111 @@ Options:
 USAGE
 }
 
+parse_args() {
+    # Reset globals to defaults
+    SPEC_FILE=""
+    OUTPUT_DIR="$DEFAULT_OUTPUT_DIR"
+    CONTINUE_MODE=false
+    MODEL="$DEFAULT_MODEL"
+    EFFORT="$DEFAULT_EFFORT"
+    WORKERS="$DEFAULT_WORKERS"
+    MAX_REPOS="$DEFAULT_MAX_REPOS"
+    GREENFIELD=false
+    VERBOSE=false
+    PRESEEDED_REPOS=()
+
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --help|-h)
+                usage
+                exit 0
+                ;;
+            --version)
+                echo "glean $GLEAN_VERSION"
+                exit 0
+                ;;
+            --continue)
+                CONTINUE_MODE=true
+                shift
+                ;;
+            --output-dir)
+                [[ $# -lt 2 ]] && { echo "glean: --output-dir requires a value" >&2; return 2; }
+                OUTPUT_DIR="$2"
+                shift 2
+                ;;
+            --repos)
+                shift
+                while [[ $# -gt 0 && ! "$1" =~ ^-- && "$1" =~ :// ]]; do
+                    PRESEEDED_REPOS+=("$1")
+                    shift
+                done
+                ;;
+            --max-repos)
+                [[ $# -lt 2 ]] && { echo "glean: --max-repos requires a value" >&2; return 2; }
+                MAX_REPOS="$2"
+                shift 2
+                ;;
+            --model)
+                [[ $# -lt 2 ]] && { echo "glean: --model requires a value" >&2; return 2; }
+                MODEL="$2"
+                shift 2
+                ;;
+            --effort)
+                [[ $# -lt 2 ]] && { echo "glean: --effort requires a value" >&2; return 2; }
+                EFFORT="$2"
+                shift 2
+                ;;
+            --workers)
+                [[ $# -lt 2 ]] && { echo "glean: --workers requires a value" >&2; return 2; }
+                WORKERS="$2"
+                shift 2
+                ;;
+            --greenfield)
+                GREENFIELD=true
+                shift
+                ;;
+            --verbose)
+                VERBOSE=true
+                shift
+                ;;
+            --*)
+                echo "glean: unknown option: $1" >&2
+                return 2
+                ;;
+            *)
+                if [[ -z "$SPEC_FILE" ]]; then
+                    SPEC_FILE="$1"
+                else
+                    echo "glean: unexpected argument: $1" >&2
+                    return 2
+                fi
+                shift
+                ;;
+        esac
+    done
+
+    if [[ -z "$SPEC_FILE" ]]; then
+        echo "glean: spec file is required" >&2
+        return 2
+    fi
+}
+
 main() {
     if [[ $# -eq 0 ]]; then
         usage
         exit 2
     fi
 
+    # Handle --help and --version before parse_args for early exit
     case "${1:-}" in
-        --help|-h)
-            usage
-            exit 0
-            ;;
-        --version)
-            echo "glean $GLEAN_VERSION"
-            exit 0
-            ;;
+        --help|-h) usage; exit 0 ;;
+        --version) echo "glean $GLEAN_VERSION"; exit 0 ;;
     esac
 
-    echo "glean: not yet implemented" >&2
+    parse_args "$@"
+    check_dependencies || exit $?
+
+    echo "glean: pipeline not yet implemented" >&2
     exit 1
 }
 
