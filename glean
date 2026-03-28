@@ -26,6 +26,26 @@ BASE_SESSION_ID=""
 
 # --- Functions ---
 
+check_dependencies() {
+    local missing=()
+    command -v claude >/dev/null 2>&1 || missing+=("claude")
+    command -v git >/dev/null 2>&1    || missing+=("git")
+    command -v jq >/dev/null 2>&1     || missing+=("jq")
+
+    if [[ ${#missing[@]} -gt 0 ]]; then
+        echo "glean: missing required dependencies: ${missing[*]}" >&2
+        echo "Install them and try again." >&2
+        return 3
+    fi
+
+    # Check bash version
+    if [[ "${BASH_VERSINFO[0]}" -lt 4 ]]; then
+        echo "glean: requires bash 4.0+, found $BASH_VERSION" >&2
+        return 3
+    fi
+    return 0
+}
+
 usage() {
     cat <<'USAGE'
 Usage: glean [options] <spec-file>
@@ -51,8 +71,24 @@ USAGE
 }
 
 main() {
+    if [[ $# -eq 0 ]]; then
+        usage
+        exit 2
+    fi
+
+    case "${1:-}" in
+        --help|-h)
+            usage
+            exit 0
+            ;;
+        --version)
+            echo "glean $GLEAN_VERSION"
+            exit 0
+            ;;
+    esac
+
     echo "glean: not yet implemented" >&2
     exit 1
 }
 
-[[ "${BASH_SOURCE[0]}" == "${0}" ]] && main "$@"
+[[ "${BASH_SOURCE[0]}" == "${0}" ]] && main "$@" || true
