@@ -1,0 +1,58 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# --- Constants ---
+GLEAN_VERSION="$(cat "$(dirname "$(readlink -f "$0" 2>/dev/null || realpath "$0" 2>/dev/null || echo "$0")")/VERSION" 2>/dev/null || echo "0.1.0")"
+DEFAULT_OUTPUT_DIR="./gleanings"
+DEFAULT_MODEL="opus"
+DEFAULT_EFFORT="high"
+DEFAULT_WORKERS=3
+DEFAULT_MAX_REPOS=10
+MAX_CRITIQUE_PASSES=8
+CLONE_DIR="/tmp/glean"
+
+# --- Globals (set by parse_args) ---
+SPEC_FILE=""
+OUTPUT_DIR="$DEFAULT_OUTPUT_DIR"
+CONTINUE_MODE=false
+MODEL="$DEFAULT_MODEL"
+EFFORT="$DEFAULT_EFFORT"
+WORKERS="$DEFAULT_WORKERS"
+MAX_REPOS="$DEFAULT_MAX_REPOS"
+GREENFIELD=false
+VERBOSE=false
+PRESEEDED_REPOS=()
+BASE_SESSION_ID=""
+
+# --- Functions ---
+
+usage() {
+    cat <<'USAGE'
+Usage: glean [options] <spec-file>
+
+Automated spec enhancement through open source intelligence.
+
+Arguments:
+  spec-file                    Path to the design spec (required)
+
+Options:
+  --continue                   Resume after human checkpoint or interruption
+  --output-dir <dir>           Output directory (default: ./gleanings)
+  --repos <urls...>            Pre-seed specific repo URLs (skips discovery)
+  --max-repos <n>              Maximum repos to deep-dive (default: 10)
+  --model <model>              Claude model (default: opus)
+  --effort <level>             Thinking effort: medium, high, max (default: high)
+  --workers <n>                Parallel repo analyses (default: 3)
+  --greenfield                 Forbid reading local codebase during analysis
+  --verbose                    Stream Claude output to terminal
+  --help                       Show this help message
+  --version                    Show version
+USAGE
+}
+
+main() {
+    echo "glean: not yet implemented" >&2
+    exit 1
+}
+
+[[ "${BASH_SOURCE[0]}" == "${0}" ]] && main "$@"
