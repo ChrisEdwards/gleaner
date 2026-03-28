@@ -408,6 +408,190 @@ human_checkpoint() {
     exit 10
 }
 
+is_cosmetic() {
+    local response="$1"
+    if echo "$response" | grep -qi 'cosmetic'; then
+        echo "true"
+    else
+        echo "false"
+    fi
+}
+
+greenfield_suffix() {
+    if [[ "$GREENFIELD" == "true" ]]; then
+        echo "
+
+Do not read my existing code. I want greenfield analysis."
+    fi
+}
+
+build_initial_analysis_prompt() {
+    local repo_path="$1" output_path="$2" spec_name="$3"
+    cat <<EOF
+Investigate the repo at ${repo_path} and look for useful ideas that
+can be reimagined in highly accretive ways on top of existing
+${spec_name} primitives.
+
+Write your analysis to ${output_path}.$(greenfield_suffix)
+EOF
+}
+
+build_deep_analysis_prompt() {
+    local output_path="$1"
+    cat <<EOF
+You barely scratched the surface here. You must go way deeper and
+think more profoundly and with more ambition and boldness.
+
+Revise ${output_path}.$(greenfield_suffix)
+EOF
+}
+
+build_inversion_prompt() {
+    local repo_name="$1" output_path="$2"
+    cat <<EOF
+Now invert the analysis: what are things that we can do because we
+are starting with "correct by design/structure" primitives that
+${repo_name} simply could never do?
+
+Append a new section to ${output_path}.$(greenfield_suffix)
+EOF
+}
+
+build_critique_prompt() {
+    cat <<'EOF'
+Look over everything in the analysis for blunders, mistakes,
+misconceptions, logical flaws, errors of omission, oversights,
+sloppy thinking, etc. and make revisions.
+
+After making revisions, state whether your changes were SUBSTANTIVE
+(restructured arguments, added missing insights, corrected errors)
+or COSMETIC (wording, formatting, minor clarifications).
+EOF
+}
+
+clone_repo() {
+    local url="$1" target_dir="$2"
+    log_info "Cloning $url to $target_dir..."
+    if ! git clone --depth 1 "$url" "$target_dir" 2>/dev/null; then
+        log_error "Failed to clone $url"
+        return 1
+    fi
+}
+
+cleanup_repo() {
+    local target_dir="$1"
+    [[ -d "$target_dir" ]] && rm -rf "$target_dir"
+}
+
+analyze_repo() {
+    local repo_url="$1"
+    local repo_name
+    repo_name=$(repo_name_from_url "$repo_url")
+    local short_name
+    short_name=$(repo_short_name "$repo_name")
+    local clone_path="$CLONE_DIR/$short_name"
+    local output_path="$OUTPUT_DIR/analysis-${short_name}.md"
+    local spec_name
+    spec_name=$(basename "$SPEC_FILE" .md)
+
+    local analysis_tools="Read,Bash,Glob,Grep,Agent,Write,Edit"
+    local critique_tools="Read,Edit,Write"
+
+    # Check state for resume
+    local current_step="clone"
+    local repo_session=""
+    local critique_passes=0
+    if [[ -f "$OUTPUT_DIR/.glean-state.json" ]]; then
+        local repo_status
+        repo_status=$(jq -r --arg r "$repo_name" '.repos[$r].status // "pending"' "$OUTPUT_DIR/.glean-state.json")
+        if [[ "$repo_status" == "complete" ]]; then
+            log_info "[$short_name] Already complete, skipping"
+            return 0
+        elif [[ "$repo_status" == "in-progress" ]]; then
+            current_step=$(jq -r --arg r "$repo_name" '.repos[$r].step' "$OUTPUT_DIR/.glean-state.json")
+            repo_session=$(jq -r --arg r "$repo_name" '.repos[$r].session_id' "$OUTPUT_DIR/.glean-state.json")
+            critique_passes=$(jq -r --arg r "$repo_name" '.repos[$r].critique_passes' "$OUTPUT_DIR/.glean-state.json")
+            log_info "[$short_name] Resuming from step: $current_step"
+        fi
+    fi
+
+    # Build extra args for repo access
+    local extra_args=(--add-dir "$clone_path")
+
+    # Step 1: Clone
+    if [[ "$current_step" == "clone" ]]; then
+        clone_repo "$repo_url" "$clone_path" || return 1
+        update_repo_state "$repo_name" "in-progress" "" "initial-analysis" 0
+        current_step="initial-analysis"
+    fi
+
+    # Step 2: Initial analysis
+    if [[ "$current_step" == "initial-analysis" ]]; then
+        log_info "[$short_name] Step 1/4: Initial analysis..."
+        local prompt
+        prompt=$(build_initial_analysis_prompt "$clone_path" "$output_path" "$spec_name")
+        repo_session=$(run_claude_fork "$BASE_SESSION_ID" "$prompt" "$analysis_tools" "${extra_args[@]}")
+        if [[ -z "$repo_session" || "$repo_session" == "null" ]]; then
+            log_error "[$short_name] Initial analysis failed"
+            update_repo_state "$repo_name" "failed" "" "initial-analysis" 0
+            return 1
+        fi
+        log_session "$short_name" "=== Initial Analysis ==="
+        update_repo_state "$repo_name" "in-progress" "$repo_session" "deep-analysis" 0
+        current_step="deep-analysis"
+    fi
+
+    # Step 3: Deep analysis
+    if [[ "$current_step" == "deep-analysis" ]]; then
+        log_info "[$short_name] Step 2/4: Going deeper..."
+        local prompt
+        prompt=$(build_deep_analysis_prompt "$output_path")
+        run_claude_resume "$repo_session" "$prompt" "$analysis_tools" "${extra_args[@]}" >/dev/null
+        update_repo_state "$repo_name" "in-progress" "$repo_session" "inversion" 0
+        current_step="inversion"
+    fi
+
+    # Step 4: Structural inversion
+    if [[ "$current_step" == "inversion" ]]; then
+        log_info "[$short_name] Step 3/4: Structural inversion..."
+        local prompt
+        prompt=$(build_inversion_prompt "$repo_name" "$output_path")
+        run_claude_resume "$repo_session" "$prompt" "$analysis_tools" "${extra_args[@]}" >/dev/null
+        update_repo_state "$repo_name" "in-progress" "$repo_session" "critique" 0
+        current_step="critique"
+    fi
+
+    # Step 5: Critique loop
+    if [[ "$current_step" == "critique" ]]; then
+        local critique_prompt
+        critique_prompt=$(build_critique_prompt)
+
+        while [[ $critique_passes -lt $MAX_CRITIQUE_PASSES ]]; do
+            critique_passes=$((critique_passes + 1))
+            log_info "[$short_name] Step 4/4: Critique pass $critique_passes..."
+
+            local result
+            result=$(run_claude_resume "$repo_session" "$critique_prompt" "$critique_tools")
+            update_repo_state "$repo_name" "in-progress" "$repo_session" "critique" "$critique_passes"
+
+            if [[ "$(is_cosmetic "$result")" == "true" ]]; then
+                log_info "[$short_name] Converged after $critique_passes critique passes"
+                break
+            fi
+        done
+
+        if [[ $critique_passes -ge $MAX_CRITIQUE_PASSES ]]; then
+            log_info "[$short_name] Hit max critique passes ($MAX_CRITIQUE_PASSES)"
+        fi
+    fi
+
+    # Mark complete and clean up
+    update_repo_state "$repo_name" "complete" "$repo_session" "critique" "$critique_passes"
+    cleanup_repo "$clone_path"
+    log_info "[$short_name] Analysis complete"
+    return 0
+}
+
 main() {
     if [[ $# -eq 0 ]]; then
         usage
