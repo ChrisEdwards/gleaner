@@ -18,13 +18,13 @@ Gleaner reads a design spec, discovers relevant open source projects, deeply ana
 ## Install
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/{owner}/gleaner/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/ChrisEdwards/gleaner/main/install.sh | bash
 ```
 
 Or clone and use directly:
 
 ```bash
-git clone https://github.com/{owner}/gleaner.git
+git clone https://github.com/ChrisEdwards/gleaner.git
 cd gleaner
 ./gleaner --help
 ```
