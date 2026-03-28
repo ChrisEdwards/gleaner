@@ -234,6 +234,24 @@ update_repo_state() {
     mv "$tmp" "$OUTPUT_DIR/.glean-state.json"
 }
 
+extract_github_urls() {
+    local file="$1"
+    grep -oE 'https?://github\.com/[A-Za-z0-9._-]+/[A-Za-z0-9._-]+' "$file" 2>/dev/null \
+        | sed 's/[[:punct:]]*$//' \
+        | sort -u \
+        || true
+}
+
+repo_name_from_url() {
+    local url="$1"
+    echo "$url" | sed 's|.*/\([^/]*/[^/]*\)$|\1|' | sed 's|\.git$||'
+}
+
+repo_short_name() {
+    local repo_name="$1"
+    echo "$repo_name" | cut -d'/' -f2
+}
+
 main() {
     if [[ $# -eq 0 ]]; then
         usage
