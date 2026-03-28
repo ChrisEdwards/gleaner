@@ -87,6 +87,10 @@ All sessions fork from the base, sharing cached spec context for efficiency.
 
 Glean persists pipeline state to `.glean-state.json`. If interrupted, `--continue` resumes from where it left off — completed repos are skipped, in-progress repos resume at their current step.
 
+## Credits
+
+Glean was inspired by [Jeff Emanuel](https://github.com/Dicklesworthstone) ([@doodlestein](https://x.com/doodlestein) on X/Twitter). The analysis prompts and the core idea of using iterative AI critique loops to refine specs against real-world open source projects both come from Jeff. His project [automated_plan_reviser_pro](https://github.com/Dicklesworthstone/automated_plan_reviser_pro) pioneered the automated multi-round revision workflow that glean builds on.
+
 ## License
 
 MIT
