@@ -37,10 +37,16 @@ Base session (reads spec)
   +-- fork --> Repo A: initial analysis
   |              |-- resume --> go deeper
   |              |-- resume --> structural inversion
-  |              |-- resume --> critique (loop until convergence)
+  |
+  +-- fork --> Repo A: critique pass 1 (reads analysis file)
+  |              |-- resume --> critique pass 2
+  |              |-- resume --> critique pass N (until convergence)
   |
   +-- fork --> Repo B: initial analysis
   |              |-- resume --> go deeper
+  |              |-- resume --> ...
+  |
+  +-- fork --> Repo B: critique pass 1
   |              |-- resume --> ...
   |
   +-- fork --> Synthesis session (reads all analyses)
@@ -102,8 +108,8 @@ For each repo, the script:
 
 1. Clones to `/tmp/gleaner/{repo-name}`
 2. Forks a new session from base
-3. Runs the 4-phase analysis chain (resume within the chain)
-4. Deletes the cloned repo when done
+3. Runs the 4-phase analysis chain (steps 1-3 resume within chain; step 4 forks fresh)
+4. Deletes the cloned repo after critique completes
 
 Repos are processed in parallel up to `--workers N` (default: 3).
 
@@ -129,7 +135,17 @@ starting with "correct by design/structure" primitives that
 {repo} simply could never do? Append to {output_path}.
 ```
 
-**Step 4 -- Critique Loop (resume, repeated until convergence):**
+**Step 4 -- Critique Loop (fork from base, then resume within critique chain):**
+
+Pass 1 forks fresh from base to shed the accumulated analysis session context:
+```
+Read the analysis at {output_path}, then examine the repo to verify
+its claims. Look for blunders, mistakes, misconceptions, logical flaws,
+errors of omission, oversights, sloppy thinking, etc. and make revisions.
+Report whether your changes were SUBSTANTIVE or COSMETIC.
+```
+
+Passes 2+ resume from the critique session:
 ```
 Look over everything for blunders, mistakes, misconceptions,
 logical flaws, errors of omission, oversights, sloppy thinking,
@@ -137,7 +153,7 @@ etc. and make revisions. Report whether your changes were
 substantive or cosmetic.
 ```
 
-The critique loop continues until the model self-reports that changes are cosmetic rather than substantive.
+The critique loop continues until the model self-reports that changes are cosmetic rather than substantive. This fork-from-base design prevents context overflow by shedding the heavy repo exploration history from steps 1-3.
 
 **Greenfield constraint:** When `--greenfield` is passed, each prompt in the chain appends: "Do not read my existing code. I want greenfield analysis."
 
@@ -147,7 +163,7 @@ The critique loop continues until the model self-reports that changes are cosmet
 |-------|---------------|
 | Discovery | `Read,Bash,WebSearch,WebFetch,Glob,Grep,Write,Agent` |
 | Repo analysis (steps 1-3) | `Read,Bash,Glob,Grep,Agent,Write,Edit` |
-| Critique loop (step 4) | `Read,Edit,Write` |
+| Critique loop (step 4) | `Read,Glob,Grep,Edit,Write` |
 
 If a session needs a tool it does not have, the prompt instructs it to state which tool and why, so the user can adjust.
 
@@ -272,7 +288,19 @@ Append a new section to {output_path}.
 {greenfield_constraint}
 ```
 
-### Critique Prompt (looped)
+### First Critique Prompt
+
+```
+Read the analysis at {output_path}, then examine the repo to verify
+its claims. Look for blunders, mistakes, misconceptions, logical flaws,
+errors of omission, oversights, sloppy thinking, etc. and make revisions.
+
+After making revisions, state whether your changes were SUBSTANTIVE
+(restructured arguments, added missing insights, corrected errors)
+or COSMETIC (wording, formatting, minor clarifications).
+```
+
+### Critique Prompt (subsequent passes)
 
 ```
 Look over everything in the analysis for blunders, mistakes,
@@ -337,19 +365,22 @@ Gleaner persists pipeline state to `{output_dir}/.gleaner-state.json` so that `-
       "status": "complete",
       "session_id": "33fdc84f-...",
       "step": "critique",
-      "critique_passes": 4
+      "critique_passes": 4,
+      "critique_session_id": "8f2a91c3-..."
     },
     "WyattBlue/auto-editor": {
       "status": "in-progress",
       "session_id": "713adae9-...",
       "step": "deep-analysis",
-      "critique_passes": 0
+      "critique_passes": 0,
+      "critique_session_id": ""
     },
     "bugbakery/audapolis": {
       "status": "pending",
       "session_id": null,
       "step": null,
-      "critique_passes": 0
+      "critique_passes": 0,
+      "critique_session_id": ""
     }
   },
   "synthesis": "pending"
@@ -358,7 +389,8 @@ Gleaner persists pipeline state to `{output_dir}/.gleaner-state.json` so that `-
 
 **Behavior on `--continue`:**
 - If state file exists, skip completed repos, resume in-progress repos at their current step, start pending repos fresh
-- If a repo's session ID is recorded, resume it rather than forking a new one
+- If a repo's session ID is recorded, resume it rather than forking a new one (for steps 1-3)
+- If resuming mid-critique and `critique_session_id` is present, resume from that session; if missing, restart critique from pass 1
 - The base session ID is preserved so all new forks share the same cached spec prefix
 - If no state file exists, fall back to the human-checkpoint behavior (read `reference-projects.md`, start deep-dives from scratch)
 
@@ -457,3 +489,5 @@ Decisions made during the design process, preserved for context.
 8. **Script clones repos, Claude reads them:** Separation of concerns. Clone success/failure is handled before burning API tokens. Claude gets read access via `--add-dir`.
 
 9. **Empirically derived tool permissions:** Tool allowlists per phase were derived from actual tool usage in manual sessions, not guessed. Sessions log when they need a tool they lack.
+
+10. **Critique forks from base:** The first critique pass forks fresh from the base session to shed the accumulated analysis session context (steps 1-3), preventing context overflow. Subsequent critique passes resume within the critique chain. This keeps context bounded to: spec + analysis file + critique verification work, rather than carrying the full repo exploration history through 8+ critique passes.
