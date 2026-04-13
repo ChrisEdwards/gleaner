@@ -234,6 +234,7 @@ load_state_field() {
 
 update_repo_state() {
     local repo_name="$1" status="$2" session_id="$3" step="$4" critique_passes="$5"
+    local critique_session_id="${6:-}"
     local lockdir="$OUTPUT_DIR/.gleaner-state.lock"
 
     # Acquire lock (mkdir is atomic on POSIX filesystems)
@@ -252,7 +253,8 @@ update_repo_state() {
         --arg sess "$session_id" \
         --arg step "$step" \
         --argjson passes "$critique_passes" \
-        '.repos[$repo] = {status: $status, session_id: $sess, step: $step, critique_passes: $passes}' \
+        --arg csess "$critique_session_id" \
+        '.repos[$repo] = {status: $status, session_id: $sess, step: $step, critique_passes: $passes, critique_session_id: $csess}' \
         "$OUTPUT_DIR/.gleaner-state.json" > "$tmp" && mv "$tmp" "$OUTPUT_DIR/.gleaner-state.json"; then
         rc=0
     else
@@ -485,6 +487,19 @@ Append a new section to ${output_path}.$(greenfield_suffix)
 EOF
 }
 
+build_first_critique_prompt() {
+    local output_path="$1"
+    cat <<EOF
+Read the analysis at ${output_path}, then examine the repo to verify
+its claims. Look for blunders, mistakes, misconceptions, logical flaws,
+errors of omission, oversights, sloppy thinking, etc. and make revisions.
+
+After making revisions, state whether your changes were SUBSTANTIVE
+(restructured arguments, added missing insights, corrected errors)
+or COSMETIC (wording, formatting, minor clarifications).
+EOF
+}
+
 build_critique_prompt() {
     cat <<'EOF'
 Look over everything in the analysis for blunders, mistakes,
@@ -523,11 +538,12 @@ analyze_repo() {
     spec_name=$(basename "$SPEC_FILE" .md)
 
     local analysis_tools="Read,Bash,Glob,Grep,Agent,Write,Edit"
-    local critique_tools="Read,Edit,Write"
+    local critique_tools="Read,Glob,Grep,Edit,Write"
 
     # Check state for resume
     local current_step="clone"
     local repo_session=""
+    local critique_session=""
     local critique_passes=0
     if [[ -f "$OUTPUT_DIR/.gleaner-state.json" ]]; then
         local repo_status
@@ -538,6 +554,7 @@ analyze_repo() {
         elif [[ "$repo_status" == "in-progress" ]]; then
             current_step=$(jq -r --arg r "$repo_name" '.repos[$r].step' "$OUTPUT_DIR/.gleaner-state.json")
             repo_session=$(jq -r --arg r "$repo_name" '.repos[$r].session_id' "$OUTPUT_DIR/.gleaner-state.json")
+            critique_session=$(jq -r --arg r "$repo_name" '.repos[$r].critique_session_id // ""' "$OUTPUT_DIR/.gleaner-state.json")
             critique_passes=$(jq -r --arg r "$repo_name" '.repos[$r].critique_passes' "$OUTPUT_DIR/.gleaner-state.json")
             log_status "[$short_name] Resuming from step: $current_step"
         fi
@@ -549,7 +566,7 @@ analyze_repo() {
     # Step 1: Clone
     if [[ "$current_step" == "clone" ]]; then
         clone_repo "$repo_url" "$clone_path" || return 1
-        update_repo_state "$repo_name" "in-progress" "" "initial-analysis" 0
+        update_repo_state "$repo_name" "in-progress" "" "initial-analysis" 0 ""
         current_step="initial-analysis"
     fi
 
@@ -561,11 +578,11 @@ analyze_repo() {
         repo_session=$(run_claude_fork "$BASE_SESSION_ID" "$prompt" "$analysis_tools" "${extra_args[@]}")
         if [[ -z "$repo_session" || "$repo_session" == "null" ]]; then
             log_error "[$short_name] Initial analysis failed"
-            update_repo_state "$repo_name" "failed" "" "initial-analysis" 0
+            update_repo_state "$repo_name" "failed" "" "initial-analysis" 0 ""
             return 1
         fi
         log_session "$short_name" "=== Initial Analysis ==="
-        update_repo_state "$repo_name" "in-progress" "$repo_session" "deep-analysis" 0
+        update_repo_state "$repo_name" "in-progress" "$repo_session" "deep-analysis" 0 ""
         current_step="deep-analysis"
     fi
 
@@ -575,7 +592,7 @@ analyze_repo() {
         local prompt
         prompt=$(build_deep_analysis_prompt "$output_path")
         run_claude_resume "$repo_session" "$prompt" "$analysis_tools" "${extra_args[@]}" >/dev/null
-        update_repo_state "$repo_name" "in-progress" "$repo_session" "inversion" 0
+        update_repo_state "$repo_name" "in-progress" "$repo_session" "inversion" 0 ""
         current_step="inversion"
     fi
 
@@ -585,12 +602,37 @@ analyze_repo() {
         local prompt
         prompt=$(build_inversion_prompt "$repo_name" "$output_path")
         run_claude_resume "$repo_session" "$prompt" "$analysis_tools" "${extra_args[@]}" >/dev/null
-        update_repo_state "$repo_name" "in-progress" "$repo_session" "critique" 0
+        update_repo_state "$repo_name" "in-progress" "$repo_session" "critique" 0 ""
         current_step="critique"
     fi
 
     # Step 5: Critique loop
     if [[ "$current_step" == "critique" ]]; then
+        # Safety check: if resuming but no critique session, restart critique from scratch
+        if [[ $critique_passes -gt 0 && -z "$critique_session" ]]; then
+            log_status "[$short_name] No critique session found, restarting critique from pass 1..."
+            critique_passes=0
+        fi
+
+        # First critique pass: fork from base (sheds heavy analysis context)
+        if [[ $critique_passes -eq 0 ]]; then
+            log_status "[$short_name] Step 4/4: Critique pass 1..."
+            local first_prompt
+            first_prompt=$(build_first_critique_prompt "$output_path")
+            critique_session=$(run_claude_fork "$BASE_SESSION_ID" "$first_prompt" "$critique_tools" "${extra_args[@]}")
+
+            if [[ -z "$critique_session" || "$critique_session" == "null" ]]; then
+                log_error "[$short_name] First critique pass failed"
+                update_repo_state "$repo_name" "failed" "$repo_session" "critique" 0 ""
+                cleanup_repo "$clone_path"
+                return 1
+            fi
+
+            critique_passes=1
+            update_repo_state "$repo_name" "in-progress" "$repo_session" "critique" "$critique_passes" "$critique_session"
+        fi
+
+        # Subsequent critique passes: resume from critique session
         local critique_prompt
         critique_prompt=$(build_critique_prompt)
 
@@ -599,8 +641,8 @@ analyze_repo() {
             log_status "[$short_name] Step 4/4: Critique pass $critique_passes..."
 
             local result
-            result=$(run_claude_resume "$repo_session" "$critique_prompt" "$critique_tools")
-            update_repo_state "$repo_name" "in-progress" "$repo_session" "critique" "$critique_passes"
+            result=$(run_claude_resume "$critique_session" "$critique_prompt" "$critique_tools" "${extra_args[@]}")
+            update_repo_state "$repo_name" "in-progress" "$repo_session" "critique" "$critique_passes" "$critique_session"
 
             if [[ "$(is_cosmetic "$result")" == "true" ]]; then
                 log_info "[$short_name] Converged after $critique_passes critique passes"
@@ -614,7 +656,7 @@ analyze_repo() {
     fi
 
     # Mark complete and clean up
-    update_repo_state "$repo_name" "complete" "$repo_session" "critique" "$critique_passes"
+    update_repo_state "$repo_name" "complete" "$repo_session" "critique" "$critique_passes" "$critique_session"
     cleanup_repo "$clone_path"
     log_status "[$short_name] Analysis complete"
     return 0
