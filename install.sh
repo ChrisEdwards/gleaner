@@ -17,7 +17,7 @@ curl -fsSL "$BASE_URL/VERSION" -o "$INSTALL_DIR/.gleaner-version"
 chmod +x "$INSTALL_DIR/gleaner"
 
 # Verify
-if "$INSTALL_DIR/gleaner" --version >/dev/null 2>&1; then
+if "$INSTALL_DIR/gleaner" --version </dev/null >/dev/null 2>&1; then
     echo "gleaner installed to $INSTALL_DIR/gleaner"
 else
     echo "Installation failed." >&2
