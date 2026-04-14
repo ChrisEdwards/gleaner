@@ -91,6 +91,23 @@ All sessions fork from the base, sharing cached spec context for efficiency.
 
 Gleaner persists pipeline state to `.gleaner-state.json`. If interrupted, `--continue` resumes from where it left off — completed repos are skipped, in-progress repos resume at their current step.
 
+## Releasing
+
+1. Bump the version in `VERSION`
+2. Commit and push to `main`
+3. Tag the commit
+
+```bash
+echo "0.2.0" > VERSION
+git add VERSION
+git commit -m "chore: release v0.2.0"
+git push origin main
+git tag v0.2.0
+git push origin v0.2.0
+```
+
+The `install.sh` script installs directly from `main`, so pushing is sufficient for users to get the new version. Tags are for bookkeeping.
+
 ## Credits
 
 Gleaner was inspired by [Jeff Emanuel](https://github.com/Dicklesworthstone) ([@doodlestein](https://x.com/doodlestein) on X/Twitter). The analysis prompts and the core idea of using iterative AI critique loops to refine specs against real-world open source projects both come from Jeff. His project [automated_plan_reviser_pro](https://github.com/Dicklesworthstone/automated_plan_reviser_pro) pioneered the automated multi-round revision workflow that gleaner builds on.
